@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capabilities for polishd windows",
+  "windows": ["settings", "transform"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-hide",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
+    "core:window:allow-center",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "opener:default"
+  ]
+}

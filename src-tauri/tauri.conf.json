@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "polishd",
+  "version": "0.1.0",
+  "identifier": "com.masher.polishd",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "settings",
+        "title": "polishd",
+        "width": 520,
+        "height": 660,
+        "minWidth": 480,
+        "minHeight": 660,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  }
+}

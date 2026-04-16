@@ -610,3 +610,81 @@ body.transform-body #root {
   from { transform: translateX(-100%); }
   to   { transform: translateX(100%); }
 }
+
+/* ── polish popup (Ctrl+Shift+E) ─────────────────── */
+
+html.polish-html #root {
+  background: transparent;
+  border-radius: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+.polish-popup-root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.polish-popup-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  color: var(--text);
+  box-sizing: border-box;
+  overflow: hidden;
+  animation: transformPopIn 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  position: relative;
+}
+
+.polish-popup-card::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 92%, transparent) 50%,
+    transparent 100%
+  );
+  animation: transformProgress 1.1s linear infinite;
+}
+
+.polish-popup-card.error::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--error) 80%, transparent) 50%,
+    transparent 100%
+  );
+  animation: none;
+  opacity: 0.6;
+}
+
+.polish-popup-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1s infinite;
+  flex-shrink: 0;
+}
+
+.polish-popup-card.error .polish-popup-dot {
+  background: var(--error);
+  animation: none;
+}
+
+.polish-popup-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-sec);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}

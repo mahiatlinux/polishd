@@ -4,10 +4,14 @@ use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
 
 const TRANSFORM_WINDOW_TITLE: &str = "polishd — transform";
+const POLISH_WINDOW_TITLE: &str = "polishd — polish";
 
 const MODAL_LOGICAL_WIDTH:  f64 = 560.0;
 const MODAL_LOGICAL_HEIGHT: f64 = 95.0;
 const CURSOR_GAP_LOGICAL:   f64 = 20.0;
+
+const POPUP_WIDTH:  f64 = 140.0;
+const POPUP_HEIGHT: f64 = 34.0;
 
 pub async fn handle_hotkey(app: AppHandle) {
     if !claim_processing_lock(&app) {
@@ -16,7 +20,9 @@ pub async fn handle_hotkey(app: AppHandle) {
     let Some((text, original)) = acquire_selection(&app).await else {
         return;
     };
+    show_polish_popup(&app);
     polish_and_paste(&app, text, original).await;
+    dismiss_polish_popup(&app);
 }
 
 pub async fn handle_transform_hotkey(app: AppHandle) {
@@ -111,6 +117,112 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
     });
 
     let _ = app.emit("status-change", "ready");
+}
+
+fn show_polish_popup(app: &AppHandle) {
+    let theme = app
+        .store(STORE_FILE)
+        .ok()
+        .and_then(|s| s.get("theme"))
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .filter(|t| t == "dark" || t == "light")
+        .unwrap_or_else(|| "dark".to_string());
+
+    let init_script = format!(
+        r#"window.__POLISHD_THEME__="{theme}";document.documentElement.setAttribute("data-theme","{theme}");"#,
+        theme = theme,
+    );
+
+    let (x, y, scale) = compute_popup_anchor(app);
+
+    let _ = WebviewWindowBuilder::new(
+        app,
+        "polish",
+        WebviewUrl::App("index.html".into()),
+    )
+    .title(POLISH_WINDOW_TITLE)
+    .inner_size(POPUP_WIDTH, POPUP_HEIGHT)
+    .min_inner_size(POPUP_WIDTH, POPUP_HEIGHT)
+    .position(x * scale, y * scale)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .visible(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focused(false)
+    .initialization_script(&init_script)
+    .build();
+}
+
+fn dismiss_polish_popup(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("polish") {
+        let _ = w.destroy();
+    }
+}
+
+fn compute_popup_anchor(app: &AppHandle) -> (f64, f64, f64) {
+    let cursor = match app.cursor_position() {
+        Ok(p) => p,
+        Err(_) => return (200.0, 200.0, 1.0),
+    };
+
+    let monitor = app
+        .available_monitors()
+        .ok()
+        .and_then(|mons| {
+            mons.into_iter().find(|m| {
+                let pos = m.position();
+                let size = m.size();
+                let cx = cursor.x as i32;
+                let cy = cursor.y as i32;
+                cx >= pos.x
+                    && cx < pos.x + size.width as i32
+                    && cy >= pos.y
+                    && cy < pos.y + size.height as i32
+            })
+        })
+        .or_else(|| app.primary_monitor().ok().flatten());
+
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0).max(0.1);
+    let cx_logical = cursor.x / scale;
+    let cy_logical = cursor.y / scale;
+
+    let (mon_x, mon_y, mon_w, mon_h) = monitor
+        .map(|m| {
+            let mscale = m.scale_factor().max(0.1);
+            let size = m.size();
+            let pos = m.position();
+            (
+                pos.x as f64 / mscale,
+                pos.y as f64 / mscale,
+                size.width as f64 / mscale,
+                size.height as f64 / mscale,
+            )
+        })
+        .unwrap_or((0.0, 0.0, 1920.0, 1080.0));
+
+    let gap = 12.0;
+    let above_top = cy_logical - gap - POPUP_HEIGHT;
+    let below_top = cy_logical + gap;
+    let mut y = if above_top >= mon_y {
+        above_top
+    } else {
+        below_top
+    };
+
+    let mut x = cx_logical - POPUP_WIDTH / 2.0;
+
+    let margin = 8.0;
+    let max_x = mon_x + mon_w - POPUP_WIDTH - margin;
+    let max_y = mon_y + mon_h - POPUP_HEIGHT - margin;
+    if x < mon_x + margin { x = mon_x + margin; }
+    if x > max_x          { x = max_x; }
+    if y < mon_y + margin { y = mon_y + margin; }
+    if y > max_y          { y = max_y; }
+
+    (x, y, scale)
 }
 
 fn claim_processing_lock(app: &AppHandle) -> bool {

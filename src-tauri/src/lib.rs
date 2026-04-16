@@ -45,8 +45,6 @@ const TRAY_ICON_PNG: &[u8] = &[
 pub struct PendingTransform {
     pub text: String,
     pub original_clipboard: Option<String>,
-    pub anchor_x: f64,
-    pub anchor_top: f64,
 }
 
 pub struct AppState {
@@ -225,6 +223,49 @@ async fn submit_transform(app: AppHandle, instruction: String, mode: String) -> 
 }
 
 #[tauri::command]
+fn resize_transform(app: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    let Some(window) = app.get_webview_window("transform") else {
+        return Err("no transform window".into());
+    };
+
+    #[cfg(target_os = "linux")]
+    {
+        let w = width.round().max(1.0) as i32;
+        let h = height.round().max(1.0) as i32;
+        window
+            .with_webview(move |webview| {
+                use gtk::prelude::{Cast, GtkWindowExt, WidgetExt};
+                let wv = webview.inner();
+                wv.set_size_request(w, h);
+                if let Some(top) = wv.toplevel() {
+                    if let Ok(gtk_win) = top.downcast::<gtk::Window>() {
+                        gtk_win.set_size_request(1, 1);
+                        gtk_win.resize(w, h);
+                        gtk_win.set_size_request(w, h);
+                        gtk_win.queue_resize();
+                        crate::hotkey::apply_rounded_shape(
+                            &gtk_win,
+                            w,
+                            h,
+                            crate::hotkey::MODAL_CORNER_RADIUS,
+                        );
+                    }
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri::LogicalSize;
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
 async fn cancel_transform(app: AppHandle) {
     let pending = {
         let state = app.state::<AppState>();
@@ -362,6 +403,7 @@ pub fn run() {
             test_polish,
             submit_transform,
             cancel_transform,
+            resize_transform,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

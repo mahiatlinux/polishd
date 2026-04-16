@@ -3076,6 +3076,7 @@ dependencies = [
  "core-foundation 0.10.1",
  "enigo",
  "futures-util",
+ "gtk",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -3087,6 +3088,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-store",
  "tokio",
+ "webkit2gtk",
  "windows 0.58.0",
  "x11rb",
 ]

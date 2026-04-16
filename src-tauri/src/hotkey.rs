@@ -1,17 +1,83 @@
 use crate::{clipboard, editable, force_focus, keystroke, polisher, AppState, PendingTransform, STORE_FILE};
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
+
+fn force_gtk_size(window: &WebviewWindow, width: f64, height: f64, radius: i32) {
+    #[cfg(target_os = "linux")]
+    {
+        let w = width.round() as i32;
+        let h = height.round() as i32;
+        let _ = window.with_webview(move |webview| {
+            use gtk::prelude::{Cast, GtkWindowExt, WidgetExt};
+            let wv = webview.inner();
+            wv.set_size_request(w, h);
+            if let Some(top) = wv.toplevel() {
+                if let Ok(gtk_win) = top.downcast::<gtk::Window>() {
+                    gtk_win.set_default_size(w, h);
+                    gtk_win.resize(w, h);
+                    apply_rounded_shape(&gtk_win, w, h, radius);
+                }
+            }
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, width, height, radius);
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn apply_rounded_shape(window: &gtk::Window, w: i32, h: i32, r: i32) {
+    use gtk::cairo::{RectangleInt, Region};
+    use gtk::prelude::WidgetExt;
+
+    if r <= 0 || w < 2 * r || h < 2 * r {
+        window.shape_combine_region(None);
+        return;
+    }
+
+    let region = Region::create();
+
+    for y in 0..r {
+        let dy = (r - y) as f64;
+        let dx = ((r * r) as f64 - dy * dy).max(0.0).sqrt().ceil() as i32;
+        let x_start = r - dx;
+        let strip_w = w - 2 * x_start;
+        if strip_w > 0 {
+            let _ = region.union_rectangle(&RectangleInt::new(x_start, y, strip_w, 1));
+        }
+    }
+
+    if h - 2 * r > 0 {
+        let _ = region.union_rectangle(&RectangleInt::new(0, r, w, h - 2 * r));
+    }
+
+    for y in 0..r {
+        let dy = (y + 1) as f64;
+        let dx = ((r * r) as f64 - dy * dy).max(0.0).sqrt().ceil() as i32;
+        let x_start = r - dx;
+        let strip_w = w - 2 * x_start;
+        if strip_w > 0 {
+            let _ = region.union_rectangle(&RectangleInt::new(x_start, h - r + y, strip_w, 1));
+        }
+    }
+
+    window.shape_combine_region(Some(&region));
+}
 
 const TRANSFORM_WINDOW_TITLE: &str = "polishd — transform";
 const POLISH_WINDOW_TITLE: &str = "polishd — polish";
 
-const MODAL_LOGICAL_WIDTH:  f64 = 560.0;
-const MODAL_LOGICAL_HEIGHT: f64 = 95.0;
-const CURSOR_GAP_LOGICAL:   f64 = 20.0;
+pub const MODAL_LOGICAL_WIDTH:  f64 = 720.0;
+pub const MODAL_LOGICAL_HEIGHT: f64 = 107.0;
+pub const MODAL_TOP_OFFSET:     f64 = 96.0;
+pub const MODAL_CORNER_RADIUS:  i32 = 0;
 
-const POPUP_WIDTH:  f64 = 140.0;
-const POPUP_HEIGHT: f64 = 34.0;
+const POPUP_WIDTH:      f64 = 160.0;
+const POPUP_HEIGHT:     f64 = 44.0;
+const POPUP_TOP_OFFSET: f64 = 96.0;
+const POPUP_CORNER_RADIUS: i32 = 0;
 
 pub async fn handle_hotkey(app: AppHandle) {
     if !claim_processing_lock(&app) {
@@ -52,8 +118,6 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
         *state.pending_transform.lock().unwrap() = Some(PendingTransform {
             text: text.clone(),
             original_clipboard: original,
-            anchor_x,
-            anchor_top,
         });
     }
 
@@ -66,9 +130,7 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
         .unwrap_or_else(|| "dark".to_string());
 
     let init_script = format!(
-        r#"window.__POLISHD_ANCHOR__={{x:{ax},y:{ay}}};window.__POLISHD_THEME__="{theme}";document.documentElement.setAttribute("data-theme","{theme}");"#,
-        ax = anchor_x,
-        ay = anchor_top,
+        r#"window.__POLISHD_THEME__="{theme}";document.documentElement.setAttribute("data-theme","{theme}");"#,
         theme = theme,
     );
 
@@ -81,7 +143,7 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
     .inner_size(MODAL_LOGICAL_WIDTH, MODAL_LOGICAL_HEIGHT)
     .min_inner_size(MODAL_LOGICAL_WIDTH, MODAL_LOGICAL_HEIGHT)
     .position(anchor_x * scale, anchor_top * scale)
-    .resizable(false)
+    .resizable(true)
     .decorations(false)
     .transparent(true)
     .visible(true)
@@ -105,6 +167,8 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
             return;
         }
     };
+
+    force_gtk_size(&w, MODAL_LOGICAL_WIDTH, MODAL_LOGICAL_HEIGHT, MODAL_CORNER_RADIUS);
 
     let _ = w.set_focus();
     tauri::async_runtime::spawn(async move {
@@ -135,7 +199,7 @@ fn show_polish_popup(app: &AppHandle) {
 
     let (x, y, scale) = compute_popup_anchor(app);
 
-    let _ = WebviewWindowBuilder::new(
+    let build = WebviewWindowBuilder::new(
         app,
         "polish",
         WebviewUrl::App("index.html".into()),
@@ -144,7 +208,7 @@ fn show_polish_popup(app: &AppHandle) {
     .inner_size(POPUP_WIDTH, POPUP_HEIGHT)
     .min_inner_size(POPUP_WIDTH, POPUP_HEIGHT)
     .position(x * scale, y * scale)
-    .resizable(false)
+    .resizable(true)
     .decorations(false)
     .transparent(true)
     .visible(true)
@@ -154,6 +218,10 @@ fn show_polish_popup(app: &AppHandle) {
     .focused(false)
     .initialization_script(&init_script)
     .build();
+
+    if let Ok(w) = build {
+        force_gtk_size(&w, POPUP_WIDTH, POPUP_HEIGHT, POPUP_CORNER_RADIUS);
+    }
 }
 
 fn dismiss_polish_popup(app: &AppHandle) {
@@ -163,33 +231,38 @@ fn dismiss_polish_popup(app: &AppHandle) {
 }
 
 fn compute_popup_anchor(app: &AppHandle) -> (f64, f64, f64) {
-    let cursor = match app.cursor_position() {
-        Ok(p) => p,
-        Err(_) => return (200.0, 200.0, 1.0),
-    };
+    let cursor = app.cursor_position().ok();
+    let (mon_x, mon_y, mon_w, _mon_h, scale) = active_monitor_logical(app, cursor);
 
-    let monitor = app
-        .available_monitors()
-        .ok()
-        .and_then(|mons| {
-            mons.into_iter().find(|m| {
-                let pos = m.position();
-                let size = m.size();
-                let cx = cursor.x as i32;
-                let cy = cursor.y as i32;
-                cx >= pos.x
-                    && cx < pos.x + size.width as i32
-                    && cy >= pos.y
-                    && cy < pos.y + size.height as i32
+    let x = mon_x + (mon_w - POPUP_WIDTH) / 2.0;
+    let y = mon_y + POPUP_TOP_OFFSET;
+    (x, y, scale)
+}
+
+fn active_monitor_logical(
+    app: &AppHandle,
+    cursor: Option<tauri::PhysicalPosition<f64>>,
+) -> (f64, f64, f64, f64, f64) {
+    let monitor = cursor
+        .and_then(|c| {
+            app.available_monitors().ok().and_then(|mons| {
+                mons.into_iter().find(|m| {
+                    let pos = m.position();
+                    let size = m.size();
+                    let cx = c.x as i32;
+                    let cy = c.y as i32;
+                    cx >= pos.x
+                        && cx < pos.x + size.width as i32
+                        && cy >= pos.y
+                        && cy < pos.y + size.height as i32
+                })
             })
         })
         .or_else(|| app.primary_monitor().ok().flatten());
 
     let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0).max(0.1);
-    let cx_logical = cursor.x / scale;
-    let cy_logical = cursor.y / scale;
 
-    let (mon_x, mon_y, mon_w, mon_h) = monitor
+    monitor
         .map(|m| {
             let mscale = m.scale_factor().max(0.1);
             let size = m.size();
@@ -199,30 +272,10 @@ fn compute_popup_anchor(app: &AppHandle) -> (f64, f64, f64) {
                 pos.y as f64 / mscale,
                 size.width as f64 / mscale,
                 size.height as f64 / mscale,
+                scale,
             )
         })
-        .unwrap_or((0.0, 0.0, 1920.0, 1080.0));
-
-    let gap = 12.0;
-    let above_top = cy_logical - gap - POPUP_HEIGHT;
-    let below_top = cy_logical + gap;
-    let mut y = if above_top >= mon_y {
-        above_top
-    } else {
-        below_top
-    };
-
-    let mut x = cx_logical - POPUP_WIDTH / 2.0;
-
-    let margin = 8.0;
-    let max_x = mon_x + mon_w - POPUP_WIDTH - margin;
-    let max_y = mon_y + mon_h - POPUP_HEIGHT - margin;
-    if x < mon_x + margin { x = mon_x + margin; }
-    if x > max_x          { x = max_x; }
-    if y < mon_y + margin { y = mon_y + margin; }
-    if y > max_y          { y = max_y; }
-
-    (x, y, scale)
+        .unwrap_or((0.0, 0.0, 1920.0, 1080.0, scale))
 }
 
 fn claim_processing_lock(app: &AppHandle) -> bool {
@@ -275,66 +328,11 @@ async fn acquire_selection(app: &AppHandle) -> Option<(String, Option<String>)> 
 }
 
 fn compute_anchor(app: &AppHandle) -> (f64, f64, f64) {
-    let cursor = match app.cursor_position() {
-        Ok(p) => p,
-        Err(_) => return (200.0, 200.0, 1.0),
-    };
+    let cursor = app.cursor_position().ok();
+    let (mon_x, mon_y, mon_w, _mon_h, scale) = active_monitor_logical(app, cursor);
 
-    let monitor = app
-        .available_monitors()
-        .ok()
-        .and_then(|mons| {
-            mons.into_iter().find(|m| {
-                let pos = m.position();
-                let size = m.size();
-                let cx = cursor.x as i32;
-                let cy = cursor.y as i32;
-                cx >= pos.x
-                    && cx < pos.x + size.width as i32
-                    && cy >= pos.y
-                    && cy < pos.y + size.height as i32
-            })
-        })
-        .or_else(|| app.primary_monitor().ok().flatten());
-
-    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0).max(0.1);
-    let cx_logical = cursor.x / scale;
-    let cy_logical = cursor.y / scale;
-
-    let (mon_x, mon_y, mon_w, mon_h) = monitor
-        .map(|m| {
-            let mscale = m.scale_factor().max(0.1);
-            let size = m.size();
-            let pos = m.position();
-            (
-                pos.x as f64 / mscale,
-                pos.y as f64 / mscale,
-                size.width as f64 / mscale,
-                size.height as f64 / mscale,
-            )
-        })
-        .unwrap_or((0.0, 0.0, 1920.0, 1080.0));
-
-    let above_top = cy_logical - CURSOR_GAP_LOGICAL - MODAL_LOGICAL_HEIGHT;
-    let below_top = cy_logical + CURSOR_GAP_LOGICAL;
-    let mut y = if above_top >= mon_y {
-        above_top
-    } else if below_top + MODAL_LOGICAL_HEIGHT <= mon_y + mon_h {
-        below_top
-    } else {
-        above_top
-    };
-
-    let mut x = cx_logical - MODAL_LOGICAL_WIDTH / 2.0;
-
-    let margin = 8.0;
-    let max_x = mon_x + mon_w - MODAL_LOGICAL_WIDTH - margin;
-    let max_y = mon_y + mon_h - MODAL_LOGICAL_HEIGHT - margin;
-    if x < mon_x + margin { x = mon_x + margin; }
-    if x > max_x          { x = max_x; }
-    if y < mon_y + margin { y = mon_y + margin; }
-    if y > max_y          { y = max_y; }
-
+    let x = mon_x + (mon_w - MODAL_LOGICAL_WIDTH) / 2.0;
+    let y = mon_y + MODAL_TOP_OFFSET;
     (x, y, scale)
 }
 

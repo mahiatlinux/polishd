@@ -30,6 +30,8 @@ enigo = { version = "0.2", features = ["x11rb"] }
 atspi = { version = "0.22", default-features = false, features = ["tokio"] }
 futures-util = "0.3"
 x11rb = "0.13"
+gtk = "0.18"
+webkit2gtk = "2.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [

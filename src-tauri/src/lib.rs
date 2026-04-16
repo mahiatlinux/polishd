@@ -132,9 +132,9 @@ fn set_hotkey(app: AppHandle, shortcut: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn submit_transform(app: AppHandle, instruction: String) -> Result<(), String> {
+async fn submit_transform(app: AppHandle, instruction: String, mode: String) -> Result<(), String> {
     let instruction = instruction.trim().to_string();
-    if instruction.is_empty() {
+    if mode == "transform" && instruction.is_empty() {
         return Err("Empty instruction".to_string());
     }
 
@@ -167,7 +167,11 @@ async fn submit_transform(app: AppHandle, instruction: String) -> Result<(), Str
 
     let _ = app.emit("status-change", "processing");
 
-    let result = polisher::transform_text(&pending.text, &instruction, &api_key).await;
+    let result = if mode == "prompt" {
+        polisher::optimize_prompt(&pending.text, &instruction, &api_key).await
+    } else {
+        polisher::transform_text(&pending.text, &instruction, &api_key).await
+    };
 
     match result {
         Ok(transformed) => {

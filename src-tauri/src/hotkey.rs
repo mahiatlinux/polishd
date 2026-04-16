@@ -6,7 +6,7 @@ use tauri_plugin_store::StoreExt;
 const TRANSFORM_WINDOW_TITLE: &str = "polishd — transform";
 
 const MODAL_LOGICAL_WIDTH:  f64 = 560.0;
-const MODAL_LOGICAL_HEIGHT: f64 = 52.0;
+const MODAL_LOGICAL_HEIGHT: f64 = 95.0;
 const CURSOR_GAP_LOGICAL:   f64 = 20.0;
 
 pub async fn handle_hotkey(app: AppHandle) {

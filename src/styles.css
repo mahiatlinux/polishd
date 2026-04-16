@@ -395,9 +395,8 @@ body.transform-body #root {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 11px 18px;
+  flex-direction: column;
+  padding: 12px 16px 10px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 94%, var(--bg));
   border: 1px solid var(--border);
@@ -410,24 +409,17 @@ body.transform-body #root {
   animation: transformPopIn 140ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.transform-icon {
-  flex-shrink: 0;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
 .transform-textarea {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   background: transparent;
   border: none;
   outline: none;
   resize: none;
   color: inherit;
   font-family: inherit;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 500;
-  line-height: 26px;
+  line-height: 22px;
   letter-spacing: -0.01em;
   padding: 0;
   margin: 0;
@@ -451,13 +443,56 @@ body.transform-body #root {
   opacity: 0.55;
 }
 
+.transform-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.transform-modes {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.transform-mode-chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+  outline: none;
+  transition: background 120ms, color 120ms, border-color 120ms;
+  line-height: 1.4;
+}
+
+.transform-mode-chip:hover {
+  background: var(--surface-hov);
+  color: var(--text-sec);
+  border-color: var(--border);
+}
+
+.transform-mode-chip.active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
 .transform-hint {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--text-dim);
-  margin-top: 1px;
 }
 
 .transform-hint kbd {

@@ -5,22 +5,32 @@ import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/
 const modalWindow = getCurrentWindow();
 
 const MODAL_WIDTH       = 560;
-const CARD_PAD_Y        = 11;
+const CARD_PAD_Y        = 12;
 const BORDER_Y          = 2;
-const LINE_HEIGHT       = 26;
+const LINE_HEIGHT       = 22;
+const TOOLBAR_BLOCK     = 47;
 const MIN_CONTENT       = LINE_HEIGHT;
-const MAX_CONTENT       = LINE_HEIGHT * 6;
-const MIN_WINDOW_HEIGHT = CARD_PAD_Y * 2 + BORDER_Y + MIN_CONTENT;
-const MAX_WINDOW_HEIGHT = CARD_PAD_Y * 2 + BORDER_Y + MAX_CONTENT;
+const MAX_CONTENT       = LINE_HEIGHT * 5;
+const MIN_WINDOW_HEIGHT = CARD_PAD_Y * 2 + BORDER_Y + MIN_CONTENT + TOOLBAR_BLOCK;
+const MAX_WINDOW_HEIGHT = CARD_PAD_Y * 2 + BORDER_Y + MAX_CONTENT + TOOLBAR_BLOCK;
+
+type Mode = "transform" | "prompt";
+
+const PLACEHOLDERS: Record<Mode, string> = {
+  transform: "Describe your edit…",
+  prompt:    "Additional context… (optional)",
+};
 
 declare global {
   interface Window {
     __POLISHD_ANCHOR__?: { x: number; y: number };
+    __POLISHD_THEME__?: string;
   }
 }
 
 export default function TransformModal() {
   const [instruction, setInstruction] = useState("");
+  const [mode, setMode] = useState<Mode>("transform");
   const [busy, setBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const anchorRef = useRef<{ x: number; top: number }>({
@@ -42,7 +52,6 @@ export default function TransformModal() {
   const setTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
     textareaRef.current = el;
     if (!el) return;
-
     const grab = () => {
       try { window.focus(); } catch {}
       try {
@@ -52,7 +61,6 @@ export default function TransformModal() {
         el.focus();
       }
     };
-
     grab();
     requestAnimationFrame(grab);
     requestAnimationFrame(() => requestAnimationFrame(grab));
@@ -64,16 +72,13 @@ export default function TransformModal() {
   const resizeWindow = useCallback(async () => {
     const ta = textareaRef.current;
     if (!ta) return;
-
     ta.style.height = "0px";
     const clampedContent = Math.max(MIN_CONTENT, Math.min(MAX_CONTENT, ta.scrollHeight));
     ta.style.height = `${clampedContent}px`;
-
     const winHeight = Math.max(
       MIN_WINDOW_HEIGHT,
-      Math.min(MAX_WINDOW_HEIGHT, CARD_PAD_Y * 2 + BORDER_Y + clampedContent),
+      Math.min(MAX_WINDOW_HEIGHT, CARD_PAD_Y * 2 + BORDER_Y + clampedContent + TOOLBAR_BLOCK),
     );
-
     try {
       await modalWindow.setSize(new LogicalSize(MODAL_WIDTH, winHeight));
       const anchor = anchorRef.current;
@@ -88,10 +93,8 @@ export default function TransformModal() {
     focusInput();
     const t1 = window.setTimeout(focusInput, 30);
     const t2 = window.setTimeout(focusInput, 120);
-
     const onWindowFocus = () => focusInput();
     window.addEventListener("focus", onWindowFocus);
-
     const onDocKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -101,7 +104,6 @@ export default function TransformModal() {
       }
     };
     window.addEventListener("keydown", onDocKeyDown);
-
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
@@ -115,11 +117,11 @@ export default function TransformModal() {
   }, [instruction, resizeWindow]);
 
   const submit = async () => {
-    const trimmed = instruction.trim();
-    if (!trimmed || busy) return;
+    if (busy) return;
+    if (mode === "transform" && !instruction.trim()) return;
     setBusy(true);
     try {
-      await invoke("submit_transform", { instruction: trimmed });
+      await invoke("submit_transform", { instruction: instruction.trim(), mode });
     } catch (err) {
       console.error("submit_transform failed", err);
       setBusy(false);
@@ -136,29 +138,11 @@ export default function TransformModal() {
   return (
     <div className="transform-root">
       <div className={`transform-card${busy ? " busy" : ""}`}>
-        <svg
-          className="transform-icon"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.25"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M4 7h7" />
-          <path d="M4 12h10" />
-          <path d="M4 17h5" />
-          <path d="M16 15l4 4" />
-          <path d="M18 11l2 2-6 6h-2v-2z" />
-        </svg>
         <textarea
           ref={setTextareaRef}
           className="transform-textarea"
           rows={1}
-          placeholder="Describe your edit…"
+          placeholder={PLACEHOLDERS[mode]}
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
           onKeyDown={onKeyDown}
@@ -169,10 +153,28 @@ export default function TransformModal() {
           disabled={busy}
           autoFocus
         />
-        <span className="transform-hint">
-          <kbd>↵</kbd>
-          <kbd>Esc</kbd>
-        </span>
+        <div className="transform-toolbar">
+          <div className="transform-modes">
+            <button
+              className={`transform-mode-chip${mode === "transform" ? " active" : ""}`}
+              onClick={() => { setMode("transform"); focusInput(); }}
+              tabIndex={-1}
+            >
+              Transform
+            </button>
+            <button
+              className={`transform-mode-chip${mode === "prompt" ? " active" : ""}`}
+              onClick={() => { setMode("prompt"); focusInput(); }}
+              tabIndex={-1}
+            >
+              Prompt
+            </button>
+          </div>
+          <span className="transform-hint">
+            <kbd>↵</kbd>
+            <kbd>Esc</kbd>
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -30,6 +30,18 @@ npm run tauri build
 
 Installers and packages appear under `src-tauri/target/release/bundle/` for your platform.
 
+## CI vs GitHub Releases
+
+- **Every push to `main`** (and PRs) runs the **Build** workflow. It uploads **workflow artifacts** only — those sit under the Actions run and are not the same as [Releases](https://github.com/mahiatlinux/polishd/releases).
+- **GitHub Releases** (installers attached to a version on the Releases tab) are created when you **push a version tag** that matches the app version in `src-tauri/tauri.conf.json` (e.g. version `0.1.0` → tag `v0.1.0`):
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The **Release** workflow then builds Linux, Windows, and macOS and uploads bundles to that release. In the repo **Settings → Actions → General → Workflow permissions**, use **Read and write** so `GITHUB_TOKEN` can publish the release.
+
 ## Configuration
 
 | Key       | Purpose            |

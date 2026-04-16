@@ -5,12 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  tauri:
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -62,3 +63,43 @@ jobs:
           name: polishd-${{ matrix.label }}
           path: src-tauri/target/release/bundle/
           if-no-files-found: warn
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage release assets
+        run: |
+          mkdir -p assets
+          find artifacts -type f \( \
+            -name "*.deb" -o \
+            -name "*.rpm" -o \
+            -name "*.AppImage" -o \
+            -name "*.dmg" -o \
+            -name "*.app.tar.gz" -o \
+            -name "*.msi" -o \
+            -name "*-setup.exe" \
+          \) -exec cp {} assets/ \;
+          ls -la assets
+
+      - name: Publish nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly-main
+          name: polishd nightly (main)
+          body: |
+            Automated build from `main`.
+            Commit: ${{ github.sha }}
+          prerelease: true
+          make_latest: "false"
+          files: assets/*
+          fail_on_unmatched_files: true

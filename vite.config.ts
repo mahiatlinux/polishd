@@ -1,5 +1,7 @@
+import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 const g = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> };
@@ -7,7 +9,12 @@ const g = globalThis as typeof globalThis & {
 const host = g.process?.env?.TAURI_DEV_HOST;
 
 export default defineConfig(async () => ({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   clearScreen: false,
   server: {
     port: 1420,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition, LogicalSize, getCurrentWindow } from "@tauri-apps/api/window";
+import { IconArrowUp, IconSparkles, IconPencil } from "@tabler/icons-react";
 
 const modalWindow = getCurrentWindow();
 
@@ -98,9 +99,7 @@ export default function TransformModal() {
     const onDocKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        invoke("cancel_transform").catch((err) => {
-          console.error("cancel_transform failed", err);
-        });
+        invoke("cancel_transform").catch(() => {});
       }
     };
     window.addEventListener("keydown", onDocKeyDown);
@@ -116,9 +115,10 @@ export default function TransformModal() {
     resizeWindow();
   }, [instruction, resizeWindow]);
 
+  const canSubmit = mode === "prompt" || instruction.trim().length > 0;
+
   const submit = async () => {
-    if (busy) return;
-    if (mode === "transform" && !instruction.trim()) return;
+    if (busy || !canSubmit) return;
     setBusy(true);
     try {
       await invoke("submit_transform", { instruction: instruction.trim(), mode });
@@ -134,6 +134,8 @@ export default function TransformModal() {
       submit();
     }
   };
+
+  const ModeIcon = mode === "prompt" ? IconSparkles : IconPencil;
 
   return (
     <div className="transform-root">
@@ -154,26 +156,31 @@ export default function TransformModal() {
           autoFocus
         />
         <div className="transform-toolbar">
-          <div className="transform-modes">
-            <button
-              className={`transform-mode-chip${mode === "transform" ? " active" : ""}`}
-              onClick={() => { setMode("transform"); focusInput(); }}
+          <div className="transform-mode-wrap">
+            <ModeIcon className="transform-mode-icon" size={14} stroke={1.75} />
+            <select
+              className="transform-mode-select"
+              value={mode}
+              onChange={(e) => { setMode(e.target.value as Mode); focusInput(); }}
               tabIndex={-1}
             >
-              Transform
-            </button>
-            <button
-              className={`transform-mode-chip${mode === "prompt" ? " active" : ""}`}
-              onClick={() => { setMode("prompt"); focusInput(); }}
-              tabIndex={-1}
-            >
-              Prompt
-            </button>
+              <option value="transform">Transform</option>
+              <option value="prompt">Prompt</option>
+            </select>
+            <svg className="transform-mode-chevron" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
           </div>
-          <span className="transform-hint">
-            <kbd>↵</kbd>
-            <kbd>Esc</kbd>
-          </span>
+
+          <button
+            className={`transform-submit${canSubmit && !busy ? " active" : ""}`}
+            onClick={submit}
+            disabled={!canSubmit || busy}
+            tabIndex={-1}
+            aria-label="Submit"
+          >
+            <IconArrowUp size={14} stroke={2.5} />
+          </button>
         </div>
       </div>
     </div>

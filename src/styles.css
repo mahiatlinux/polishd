@@ -419,7 +419,6 @@ body.transform-body #root {
 .transform-textarea {
   flex: 1;
   min-width: 0;
-  align-self: stretch;
   background: transparent;
   border: none;
   outline: none;

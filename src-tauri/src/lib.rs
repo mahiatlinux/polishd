@@ -186,7 +186,7 @@ async fn submit_transform(app: AppHandle, instruction: String, mode: String) -> 
 
             if write_ok {
                 tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-                let _ = tokio::task::spawn_blocking(keystroke::paste).await;
+                let _ = hotkey::run_keystroke(&app, keystroke::paste).await;
 
                 tokio::time::sleep(tokio::time::Duration::from_millis(220)).await;
                 if let Some(orig) = pending.original_clipboard {
@@ -253,7 +253,7 @@ fn resize_transform(app: AppHandle, width: f64, height: f64) -> Result<(), Strin
                 }
             })
             .map_err(|e| e.to_string())?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "linux"))]

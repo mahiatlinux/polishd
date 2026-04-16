@@ -134,6 +134,11 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
         theme = theme,
     );
 
+    #[cfg(target_os = "linux")]
+    let resizable = true;
+    #[cfg(not(target_os = "linux"))]
+    let resizable = false;
+
     let build_result = WebviewWindowBuilder::new(
         &app,
         "transform",
@@ -143,7 +148,7 @@ pub async fn handle_transform_hotkey(app: AppHandle) {
     .inner_size(MODAL_LOGICAL_WIDTH, MODAL_LOGICAL_HEIGHT)
     .min_inner_size(MODAL_LOGICAL_WIDTH, MODAL_LOGICAL_HEIGHT)
     .position(anchor_x * scale, anchor_top * scale)
-    .resizable(true)
+    .resizable(resizable)
     .decorations(false)
     .transparent(true)
     .visible(true)
@@ -199,6 +204,11 @@ fn show_polish_popup(app: &AppHandle) {
 
     let (x, y, scale) = compute_popup_anchor(app);
 
+    #[cfg(target_os = "linux")]
+    let resizable = true;
+    #[cfg(not(target_os = "linux"))]
+    let resizable = false;
+
     let build = WebviewWindowBuilder::new(
         app,
         "polish",
@@ -208,7 +218,7 @@ fn show_polish_popup(app: &AppHandle) {
     .inner_size(POPUP_WIDTH, POPUP_HEIGHT)
     .min_inner_size(POPUP_WIDTH, POPUP_HEIGHT)
     .position(x * scale, y * scale)
-    .resizable(true)
+    .resizable(resizable)
     .decorations(false)
     .transparent(true)
     .visible(true)
@@ -278,6 +288,28 @@ fn active_monitor_logical(
         .unwrap_or((0.0, 0.0, 1920.0, 1080.0, scale))
 }
 
+pub async fn run_keystroke(
+    app: &AppHandle,
+    f: fn() -> Result<(), String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        app.run_on_main_thread(move || {
+            let _ = tx.send(f());
+        })
+        .map_err(|e| e.to_string())?;
+        rx.await.unwrap_or(Err("main-thread channel closed".into()))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        tokio::task::spawn_blocking(f)
+            .await
+            .unwrap_or(Err("spawn error".into()))
+    }
+}
+
 fn claim_processing_lock(app: &AppHandle) -> bool {
     let state = app.state::<AppState>();
     let mut processing = state.is_processing.lock().unwrap();
@@ -302,11 +334,7 @@ async fn acquire_selection(app: &AppHandle) -> Option<(String, Option<String>)> 
         .await
         .unwrap_or(None);
 
-    let copy_ok = tokio::task::spawn_blocking(keystroke::copy)
-        .await
-        .unwrap_or(Err("spawn error".into()));
-
-    if let Err(e) = copy_ok {
+    if let Err(e) = run_keystroke(app, keystroke::copy).await {
         eprintln!("[polishd] copy error: {e}");
         finish(app, "ready");
         return None;
@@ -364,8 +392,7 @@ async fn polish_and_paste(app: &AppHandle, text: String, original: Option<String
 
             if write_ok {
                 tokio::time::sleep(tokio::time::Duration::from_millis(60)).await;
-                let paste_result = tokio::task::spawn_blocking(keystroke::paste).await;
-                if paste_result.unwrap_or(Err("spawn".into())).is_err() {
+                if run_keystroke(app, keystroke::paste).await.is_err() {
                     restore_and_finish(app, original, "error").await;
                     return;
                 }

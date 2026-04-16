@@ -21,8 +21,8 @@ jobs:
             label: windows
             args: ""
           - platform: macos-latest
-            label: macos
-            args: ""
+            label: macos-universal
+            args: "--target universal-apple-darwin"
 
     runs-on: ${{ matrix.platform }}
 
@@ -47,6 +47,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: Swatinem/rust-cache@v2
         with:

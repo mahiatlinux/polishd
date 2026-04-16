@@ -65,8 +65,8 @@ export default function TransformModal() {
     const ta = textareaRef.current;
     if (!ta) return;
 
-    const lines = Math.max(1, ta.value.split("\n").length);
-    const clampedContent = Math.max(MIN_CONTENT, Math.min(MAX_CONTENT, lines * LINE_HEIGHT));
+    ta.style.height = "0px";
+    const clampedContent = Math.max(MIN_CONTENT, Math.min(MAX_CONTENT, ta.scrollHeight));
     ta.style.height = `${clampedContent}px`;
 
     const winHeight = Math.max(

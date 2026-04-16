@@ -61,7 +61,7 @@ export default function TransformModal() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const menuOpenRef = useRef(false);
+
   const anchorRef = useRef({
     x: window.__POLISHD_ANCHOR__?.x ?? 0,
     top: window.__POLISHD_ANCHOR__?.y ?? 0,
@@ -98,7 +98,7 @@ export default function TransformModal() {
     window.setTimeout(grab, 320);
   }, []);
 
-  const applySize = useCallback(async (withMenu: boolean) => {
+  const applySize = useCallback(async () => {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = "0px";
@@ -108,7 +108,7 @@ export default function TransformModal() {
       MIN_WINDOW_HEIGHT,
       Math.min(MAX_WINDOW_HEIGHT, CARD_PAD_Y * 2 + BORDER_Y + content + TOOLBAR_BLOCK),
     );
-    const h = base + (withMenu ? MENU_HEIGHT : 0);
+    const h = base + MENU_HEIGHT;
     try {
       await modalWindow.setSize(new LogicalSize(MODAL_WIDTH, h));
       await modalWindow.setPosition(
@@ -119,25 +119,20 @@ export default function TransformModal() {
     }
   }, []);
 
-  const resizeWindow = useCallback(() => applySize(menuOpenRef.current), [applySize]);
-
-  const openMenu = useCallback(() => {
-    menuOpenRef.current = true;
-    setMenuOpen(true);
-    applySize(true);
-  }, [applySize]);
+  const resizeWindow = useCallback(() => applySize(), [applySize]);
 
   const closeMenu = useCallback(() => {
-    menuOpenRef.current = false;
     setMenuOpen(false);
-    applySize(false);
-  }, [applySize]);
+  }, []);
 
   const selectMode = useCallback((m: Mode) => {
     setMode(m);
     closeMenu();
     focusInput();
   }, [closeMenu, focusInput]);
+
+  const menuOpenRef = useRef(false);
+  menuOpenRef.current = menuOpen;
 
   useEffect(() => {
     resizeWindow();
@@ -205,7 +200,7 @@ export default function TransformModal() {
           <div className="transform-mode-wrap">
             <button
               className={`transform-mode-trigger${menuOpen ? " open" : ""}`}
-              onClick={() => (menuOpen ? closeMenu() : openMenu())}
+              onClick={() => setMenuOpen((o) => !o)}
               tabIndex={-1}
             >
               <ModeIcon mode={mode} />

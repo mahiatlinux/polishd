@@ -13,6 +13,7 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutEvent, ShortcutState};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt as AutostartManagerExt};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
 
@@ -274,6 +275,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             let stored_hotkey = app
                 .store(STORE_FILE)
@@ -316,6 +318,8 @@ pub fn run() {
                 hotkey:            Mutex::new(stored_hotkey.clone()),
                 pending_transform: Mutex::new(None),
             });
+
+            let _ = app.autolaunch().enable();
 
             editable::init();
 

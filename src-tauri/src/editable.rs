@@ -164,7 +164,7 @@ mod platform {
         AXUIElementCopyAttributeValue, AXUIElementCreateSystemWide, AXUIElementRef,
     };
     use core_foundation::{
-        base::{CFRelease, CFType, TCFType},
+        base::{CFRelease, TCFType},
         boolean::CFBoolean,
         string::{CFString, CFStringRef},
     };
@@ -193,7 +193,7 @@ mod platform {
             if let Some(enabled_raw) = copy_attr(focused_el, kAXEnabledAttribute) {
                 let enabled: CFBoolean =
                     CFBoolean::wrap_under_create_rule(enabled_raw as _);
-                if !enabled.as_ref().eq(&CFBoolean::true_value()) {
+                if !bool::from(enabled) {
                     CFRelease(focused_el as _);
                     return Some(false);
                 }
